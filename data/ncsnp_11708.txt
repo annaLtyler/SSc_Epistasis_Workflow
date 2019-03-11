@@ -1,0 +1,17 @@
+ID	SNP	Chromosome	Position	Overlapped Gene	Type	Annotation	Nearest Upstream Gene	Type of Nearest Upstream Gene	Distance to Nearest Upstream Gene	Nearest Downstream Gene	Type of Nearest Downstream Gene	Distance to Nearest Downstream Gene	
+chr3:29890394:G/A:1	rs1449292	chr3	29890394	RBMS3	protein_coding	intronic,non-coding intronic							
+chr2:241411522:A/G:1	rs2055566	chr2	241411522	FARP2	protein_coding	intronic,non-coding intronic							
+chr14:83621173:A/C:1	rs6574751	chr14	83621173				RNU7-51P	snRNA	572533	RNU6ATAC28P	snRNA	129211	
+chr9:134217399:A/G:1	rs7033108	chr9	134217399				BX649601.1	lincRNA	48059	LINC02247	lincRNA	76532	
+chr10:3363335:T/C:1	rs2065936	chr10	3363335				AL139280.1	lincRNA	96320	AL357833.1	lincRNA	123559	
+chr17:48270992:G/A:1	rs17694404	chr17	48270992	SKAP1	protein_coding	intronic							
+chr22:42726714:G/A:1	rs9607931	chr22	42726714				A4GALT	protein_coding	5416	Y_RNA	misc_RNA	36146	
+chr17:57342880:G/T:1	rs792399	chr17	57342880	MSI2	protein_coding	intronic,non-coding intronic							
+chr3:55473253:T/C:1	rs556874	chr3	55473253	WNT5A	protein_coding	intronic,3downstream							
+chr19:3181068:C/T:1	rs3746070	chr19	3181068				S1PR4	protein_coding	736	NCLN	protein_coding	4495	
+chr7:115722493:A/G:1	rs6466555	chr7	115722493				AC093714.1	lincRNA	39875	AC093714.2	lincRNA	67236	
+chr7:115734088:A/C/G:1	rs10245192	chr7	115734088				AC093714.1	lincRNA	51470	AC093714.2	lincRNA	55641	
+chr11:1927731:T/C:1	rs2734510	chr11	1927731	TNNT3	protein_coding	intronic,non-coding intronic,5upstream							
+chr20:18817755:A/G:1	rs6105966	chr20	18817755	C20orf78	sense_overlapping	non-coding intronic							
+chr9:81822500:C/G/T:1	rs7854383	chr9	81822500				AL591368.1	lincRNA	45600	RNA5SP287	rRNA	62996	
+
