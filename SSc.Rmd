@@ -1,0 +1,1001 @@
+---
+title: "Genetic interactions in Systemic Sclerosis"
+author: Anna L Tyler
+date: 8/Aug/2018
+output: html_document
+bibliography: SSc.bib
+---
+
+```{r fig.sizes, echo = FALSE}
+g3.fig.min.width <- 10/2.5 #cm converted to inches
+g3.fig.max.width <- 20/2.5 
+g3.fig.min.height <- 1/2.5
+g3.fig.max.height <- 25/2.5
+```
+
+## Introduction
+This workflow accompanies the paper ``Genetic interactions affect lung function in 
+patients with systemic sclerosis."
+
+This purpose of this project was to investigate genetic interactions influencing the 
+presence of autoantibodies as well as lung function in a cohort of patients with systemic 
+sclerosis (SSc). We use the Combines Analysis of Pleiotropy and Epistasis (CAPE) \cite{cape}, 
+which increases power to detect interactions by combining information across multiple traits.
+
+We identify three high-confidence candidates that influence lung function in SSc patients.
+
+This workflow is a companion to [cite paper] and performs each step used in the analysis.
+
+## CAPE setup
+Set up all the libraries and functions we will use
+
+```{r load_packages, warning=FALSE, message=FALSE}
+needed.packages <- c("evd", "Matrix", "fdrtool", "shape", "corpcor", "RColorBrewer", 
+"doParallel","foreach", "caTools", "stringr", "abind", "propagate", "knitr", "pander", "igraph",
+"RColorBrewer", "gProfileR", "pheatmap", "here")
+
+for(i in 1:length(needed.packages)){library(needed.packages[i], character.only = TRUE)}
+```
+
+Set up directories.
+
+```{r setup_dir}
+project.dir <- here()
+code.dir <- here("code")
+data.dir <- here("data")
+results.dir <- here("results")
+```
+
+Source all the code used
+
+```{r source_code}
+all.code.dir <- list.files(code.dir, full.names = TRUE)
+for(i in 1:length(all.code.dir)){
+	all.fun <- list.files(all.code.dir[i], pattern = ".R", full.names = TRUE)
+	for(i in 1:length(all.fun)){source(all.fun[i])}
+	}
+```
+
+
+The following code reads in raw data and builds the cape objects. It is not run here.
+```{r build_cape_data, eval = FALSE}
+build.ssc.cape.data()
+```
+
+Instead we will read in the built object carrying the phenotype data,
+
+```{r read_pheno}
+SScPop <- readRDS(here("data", "project_data", "cross.RData"))
+```
+
+and the genotype data. We also converted the genotypes to a dominant coding, which 
+gives us more patients for all marker pair genotypes.
+
+```{r read_geno, eval = TRUE}
+geno <- readRDS(here("data", "project_data", "geno.RData"))
+geno[which(geno >= 0.5)] <- 1
+```
+
+The figure below shows the first three principle components of the genotype matrix plotted
+against each other in pairs. There is no evidence of population structure in these plots.
+We thus did not correct for population structure.
+
+
+We used sex as a covariate. 
+
+```{r set_covar}
+SScPop <- pheno2covar(SScPop, "sex")
+```
+
+## Look at trait distributions
+We then selected the traits that we are interested in: 
+
+```{r select_pheno}
+SScPop <- select.pheno(SScPop, c("centromere", "nucleolar", "pf1_fvcp", "pf1_dlcp"))
+```
+
+We looked at two patterns of autoantibody staining. The first is a centromeric pattern 
+("centromere"). This pattern is associated with sclerodactyly and Raynaud's phenomenon 
+\cite{centromereTitre} as well as other CREST symptomes \cite{centromereCREST}. The 
+centromeric pattern of autoantibody is also associated with the limited form of SSc, 
+and with patients at lower risk of internal organ involvement \cite{SScAutoAA}. The 
+second autoantibody staining pattern is nucleolar, which is associated with interstitial 
+lung disease and pulmonary hypertension \cite{nucleolarLung}. The distributions among the
+patients were as follows:
+
+```{r aa_dist, fig.height = 3, fig.width = 3}
+d.t <- table(as.data.frame(SScPop$pheno[,c("centromere", "nucleolar")]))
+d.t
+aa.v <- matrix(as.vector(d.t))
+aa.mat <- aa.v/sum(aa.v)
+aa.fig.width = g3.fig.min.width
+aa.fig.height <- aa.fig.width/5.5
+pdf(here("results", "Figures", "Fig_AA_proportions.pdf"), width = aa.fig.width, height = aa.fig.height)
+par(mar = c(1.5,1,1.5,1), ps = 9, mgp = c(3, 0.3, 0))
+barplot(aa.mat, col = c("#7fc97f", "#beaed4", "#fdc086", "#386cb0"), horiz = TRUE, axes = FALSE)
+axis(1)
+par(xpd = TRUE)
+y.val = 1.7
+text(y = y.val, x = 0.25, labels = paste0("None (", aa.v[1], ")"))
+text(y = y.val, x = 0.6, labels = paste0("ACA (", aa.v[2], ")"))
+text(y = y.val, x = 0.89, labels = paste0("ANA (", aa.v[3], ")"))
+text(y = y.val, x = 0.99, labels = paste0("Both\n(", aa.v[4], ")"), srt = 45, adj = 0)
+dev.off()
+```
+
+We also looked at two lung function tests: forced vital capacity percent predicted: 
+"pf1\_fvcp", and diffusion lung capacity predicted: "pf1\_dlcp." Forced vital capacity
+is the the volume of air that can be forcibly blown out after a full inspiration. The percent
+predicted is the percent of the predicted value for a person with similar characteristics, such
+as height, age, and sex. 
+
+Diffusion lung capacity is a measure of the efficiency of gas transfer from the lungs to the
+blood. As with FVCP, the percentage is based on the percentage of the predicted value for a
+person with similar characteristics such as height, age, and sex.
+
+Here we look at some properties of the traits.
+
+```{r assign_names}
+#assign variable names to all traits for easier use
+centromere <- SScPop$pheno[,"centromere"]
+centromere[which(centromere == 0)] <- "-"
+centromere[which(centromere == "1")] <- "C"
+
+nucleolar <- SScPop$pheno[,"nucleolar"]
+nucleolar[which(nucleolar == 0)] <- "-"
+nucleolar[which(nucleolar == "1")] <- "N"
+
+sex <- SScPop$p.covar.table[,1]
+sex[which(sex == 0)] <- "F"
+sex[which(sex == "1")] <- "M"
+
+FVCP <- SScPop$pheno[,"pf1_fvcp"]
+DLCP <- SScPop$pheno[,"pf1_dlcp"]
+```
+
+Both traits were roughly normally distributed with maximum values ranging to above 100\%:
+
+```{r trait_dist, fig.height = 4, fig.width = 10}
+par(mfrow = c(1,3))
+hist(FVCP, main = "Distribution of FVCP", xlim = c(0, max(FVCP, na.rm = TRUE)), xlab = "FVCP")
+hist(DLCP, main = "Distribution of DLCP", xlim = c(0, max(DLCP, na.rm = TRUE)), xlab = "DLCP")
+correlation <- cor.test(FVCP, DLCP)
+r <- signif(correlation$estimate, 2)
+p <- signif(correlation$p.value, 2)
+plot(FVCP, DLCP, pch = 16, main = paste0("r = ", r, ", p = ", p))
+```
+
+```{r lung_dist_fig, echo = FALSE}
+#plot a pdf for use as a figure
+lung.fig.width <- g3.fig.min.width
+lung.fig.height <- g3.fig.min.width*0.33
+pdf(here("results", "Figures", "Fig_lung_dist.pdf"), width = lung.fig.width, height = lung.fig.height)
+par(mfrow = c(1,3), ps = 9, mar = c(2.5,2.5,1,0.5))
+
+hist(FVCP, xlim = c(0, max(FVCP, na.rm = TRUE)), main = "", axes = FALSE, xlab = "", ylab = "", breaks = 25)
+par(mgp = c(1.2, 0.2, 0));axis(1)
+par(mgp = c(1.4, 0.4, 0));axis(2)
+mtext("FVCP (%)", side = 1, line = 1.2, cex = 9/12)
+mtext("Frequency", side = 2, line = 1.2, cex = 9/12)
+
+par(mar = c(2.5,0,1,3))
+hist(DLCP,  xlim = c(0, max(DLCP, na.rm = TRUE)), main = "", axes = FALSE, xlab = "", ylab = "", breaks = 25)
+par(mgp = c(1.2, 0.2, 0));axis(1)
+# par(mgp = c(1.4, 0.4, 0));axis(2)
+mtext("DLCP (%)", side = 1, line = 1.2, cex = 9/12)
+# mtext("Frequency", side = 2, line = 1.2, cex = 9/12)
+
+par(mar = c(2.5,0,1,1))
+plot(FVCP, DLCP, cex = 0.5, xlab = "", ylab = "")
+mtext("FVCP (%)", side = 1, line = 1.2, cex = 9/12)
+mtext("DLCP (%)", side = 2, line = 1.2, cex = 9/12)
+dev.off()
+```
+
+
+We normalized the traits for our analysis using a rank Z transform:
+
+```{r norm_dist, fig.height = 4, fig.width = 10}
+SScPop <- norm.pheno(SScPop)
+
+FVCP <- SScPop$pheno[,"pf1_fvcp"]
+DLCP <- SScPop$pheno[,"pf1_dlcp"]
+
+par(mfrow = c(1,3))
+hist(FVCP, main = "Distribution of FVCP", xlab = "FVCP")
+hist(DLCP, main = "Distribution of DLCP", xlab = "DLCP")
+correlation <- cor.test(FVCP, DLCP)
+r <- signif(correlation$estimate, 2)
+p <- signif(correlation$p.value, 2)
+plot(FVCP, DLCP, pch = 16, main = paste0("r = ", r, ", p = ", p))
+```
+
+We looked to see if there were any associations between the autoantibody patterns and the 
+lung function tests.
+
+```{r aa_lung, fig.height = 7, fig.width = 7}
+
+#function to make boxplot and test association
+plot.association <- function(aa, lung_trait){
+	aa.name <- deparse(substitute(aa))
+	trait.name <- deparse(substitute(lung_trait))
+	aa <- as.factor(aa)
+	test <- t.test(lung_trait~aa)
+	pval <- signif(test$p.value, 2)
+	boxplot(lung_trait~aa, names = levels(aa), ylab = trait.name, 
+	main = paste(trait.name, "by", aa.name, "\np =", pval), cex.lab = 1.5, cex.axis = 1.5)
+	}
+
+par(mfrow = c(2,2))
+plot.association(centromere, FVCP)
+plot.association(centromere, DLCP)
+plot.association(nucleolar, FVCP)
+plot.association(nucleolar, DLCP)
+```
+
+The presence of centromeric autoantibody staining has previously been associated with 
+lower risk of internal organ involvement in SSc \cite{centromereTitre}, while nucleolar
+autoantibody staining has been associated with increased risk of interstitial lung disease
+and pulmonary hypertension. In support of these findings, the presence of centromeric autoantibody 
+staining in this population was associated with higher FVCP, while the presence of the nucleolar
+autoantibody was associated with a slight decrease in FVCP. However, there was no association 
+between either autoantibody and DLCP. 
+
+We also looked at the effects of sex:
+
+```{r sex_lung, fig.height = 4, fig.width = 7}
+par(mfrow = c(1,2))
+plot.association(sex, FVCP)
+plot.association(sex, DLCP)
+```
+
+```{r generate_lung_figure, echo = FALSE}
+fig.box <- function(y,x, yaxis = TRUE, sig = FALSE, main = "", ylab = "", cex.names = 2, cex.main = 1.2){
+	boxplot(y~x, axes = FALSE, main = main, ylab = ylab, cex.main = cex.main)
+	if(yaxis){axis(2, cex.axis = cex.axis)}
+	miny <- min(y, na.rm = TRUE)
+	maxy <- max(y, na.rm = TRUE)
+	plot.height <- maxy - miny
+	par(xpd = TRUE)
+	factor.names <- levels(as.factor(x))
+	factor.names[which(factor.names == "-")] <- expression(symbol("\306"))
+	text(x = c(1,2), y = rep(miny-(plot.height*0.18), 2), labels = factor.names, 
+	cex = cex.names)
+	if(sig){text(x = 1.5, y = maxy, labels = "*", cex = cex.lab*1.5)}
+	par(xpd = FALSE)
+}
+
+lung.box.width = g3.fig.min.width
+lung.box.height = g3.fig.min.width*0.75
+pdf(here("results", "Figures", "Fig_Lung_Traits.pdf"), width = lung.box.width, height = lung.box.height)
+#quartz(width = lung.box.width, height = lung.box.height)
+cex.axis = 1; cex.lab = 1
+par(mar = c(2,3,3,0), ps = 9, mfrow = c(2,3))
+fig.box(FVCP, sex, yaxis = TRUE, sig = TRUE, main = "Sex", cex.main = 1.5)
+mtext("FVCP", side = 2, line = 1.8)
+fig.box(FVCP, nucleolar, yaxis = FALSE, sig = TRUE, main = "Nucleolar", cex.main = 1.5)
+fig.box(FVCP, centromere, yaxis = FALSE, sig = TRUE, main = "Centromere", cex.main = 1.5)
+
+par(mar = c(4,3,1,0))
+fig.box(DLCP, sex, TRUE)
+mtext("DLCP", side = 2, line = 1.8)
+fig.box(DLCP, nucleolar, FALSE)
+fig.box(DLCP, centromere, FALSE)
+dev.off()
+
+```
+
+
+Sex had a main effect on FVCP, but no DLCP. Males had a significantly lower FVCP than females.
+
+In addition for main effects, we looked for interaction effects between the autoantibodies, and 
+between the autoantibodies and sex.
+
+```{r interaction_function}
+factor.interaction <- function(trait, factor1, factor2, plot.type = c("box", "line")){
+	plot.type = plot.type[1]
+	f1.name <- deparse(substitute(factor1))
+	f2.name <- deparse(substitute(factor2))
+	trait.name <- deparse(substitute(trait))
+	if(plot.type == "box"){
+		test <- anova(aov(trait~as.factor(factor1)*as.factor(factor2)))
+		pval <- signif(test$"Pr(>F)"[3], 2)
+		stats <- boxplot(trait~as.factor(factor1)*as.factor(factor2), ylab = trait.name, 
+		main = paste(trait.name, "by", f1.name, "and", f2.name, "\np =", pval), cex.lab = 1.5, cex.axis = 1.5)
+		par(xpd = TRUE)
+		text(x = 1:4, y = min(trait, na.rm = TRUE)*1.45, labels = stats$n)
+		par(xpd = FALSE)
+		}else{
+		test <- lm(trait~as.factor(factor1)*as.factor(factor2))
+		results <- summary(test)$coefficients 
+		pval <- signif(results[nrow(results),ncol(results)], 2)
+		no.na <- which(!is.na(trait))
+		interaction.plot(factor1[no.na], factor2[no.na], trait[no.na], xlab = f1.name, ylab = trait.name, trace.label = f2.name, main = paste("p =", pval))
+		}
+	}
+```
+
+A plot of both autoantibodies together shows that there is no interaction between the effects
+of the autoantibodies, although, patients with only the centromere autoantibody trend toward the
+highest lung function.
+
+```{r aa_int, fig.width = 10}
+par(mfrow = c(1,2))
+factor.interaction(FVCP, centromere, nucleolar)
+factor.interaction(DLCP, centromere, nucleolar)
+```
+
+There is an interaction between sex and the nucleolar autoantibody. While patients positive for
+the nucleolar autoantibody tend to have a slightly lower FVCP on average, this effect is driven
+primarily by the female patients. Male patients with the nucleolar autoantibody tend to have 
+slightly higher FVCP than males without the nucleolar autoantibody.
+
+```{r sex_int, fig.width = 8, fig.height = 8}
+par(mfrow = c(2,2))
+factor.interaction(FVCP, centromere, sex)
+factor.interaction(FVCP, nucleolar, sex)
+factor.interaction(FVCP, centromere, sex, "line")
+factor.interaction(FVCP, nucleolar, sex, "line")
+```
+
+There was no interaction between sex and the autoantibodies affecting DLCP, although males
+positive for each autoantibody trended toward higher DLCP. DLCP in females was largely unaffected
+by the presence of the autoantibodies.
+
+```{r sex_int_dlcp, fig.height = 8, fig.width = 8}
+par(mfrow = c(2,2))
+factor.interaction(DLCP, sex, nucleolar)
+factor.interaction(DLCP, sex, centromere)
+factor.interaction(DLCP, nucleolar, sex, "line")
+factor.interaction(DLCP, centromere, sex, "line")
+```
+
+```{r int_fig}
+int.lines <- function(y,x,split.by, lwd = 3, sig = FALSE, errors = TRUE, yaxis = TRUE, names.cex = 1){
+	split.levels <- levels(as.factor(split.by))
+	x.levels <- levels(as.factor(x))
+	se.mat <- mean.mat <- matrix(NA, nrow = length(split.levels), ncol = length(x.levels))
+	rownames(mean.mat) <- rownames(se.mat) <- split.levels
+	colnames(mean.mat) <- colnames(se.mat) <- x.levels
+	for(i in 1:length(split.levels)){
+		for(j in 1:length(x.levels)){
+		idx <- intersect(which(x == x.levels[j]), which(split.by == split.levels[i]))
+		mean.mat[i,j] <- mean(y[idx], na.rm = TRUE)
+		se.mat[i,j] <- sd(y[idx], na.rm = TRUE)/sqrt(length(idx))
+		}
+	}
+	if(errors){
+		ymin <- min(mean.mat-se.mat);ymax <- max(mean.mat+se.mat)
+	}else{
+		ymin <- min(mean.mat);ymax <- max(mean.mat)
+	}
+	
+	plot.height = ymax - ymin
+	plot.new()
+	plot.window(xlim = c(0.5, ncol(mean.mat)+0.5), ylim = c(ymin-(plot.height*0.05), ymax+(plot.height*0.05)))
+	for(i in 1:nrow(mean.mat)){
+		points(x = 1:ncol(mean.mat), y = mean.mat[i,], lty = i, type = "l", lwd = lwd)
+		if(errors){
+		segments(x0 = 1:ncol(mean.mat), y0 = c(mean.mat[i,]+se.mat[i,]), y1 = c(mean.mat[i,]-se.mat[i,]), lwd = lwd)
+		}
+	}
+	par(xpd = TRUE)
+	for(i in 1:ncol(mean.mat)){
+		if(colnames(mean.mat)[i] == "-"){
+			text(x = i, y = (ymin-(plot.height*0.1)), labels = expression(symbol("\306")), cex = names.cex)
+		}else{
+			text(x = i, y = (ymin-(plot.height*0.1)), labels = colnames(mean.mat)[i], cex = names.cex)
+		}
+	}
+	if(yaxis){axis(2, cex.axis = cex.lab)}
+	#text(x = 0, y = mean(c(ymin, ymax)), labels = deparse(substitute(y)), cex = cex.lab, srt = 90)
+	if(sig){text(x = 1.5, y = ymax, labels = "*", cex = cex.lab*1.5)}
+}
+
+make.legend <- function(split.by, cex = 2, lwd = 2, x = 0.2, y = 0.9){
+    plot.new()
+    plot.window(xlim = c(0,1), ylim = c(0,1))
+    split.levels <- levels(as.factor(split.by))
+    split.levels[which(split.levels == "-")] <- expression(symbol("\306"))
+    legend(x,y,lty = 1:length(split.levels), legend = split.levels, cex = cex, lwd = lwd, horiz = TRUE, bty = "n")
+	# draw.rectangle(0,1,0,1)
+}
+
+
+pdf(here("results", "Figures", "Fig_Lung_Interactions_All.pdf"), width = 10, height = 6)
+layout.mat <- matrix(c(0, 1:3, 0, 4:14), nrow = 4, byrow = TRUE)
+layout(layout.mat, widths = c(0.2, rep(1, 3)), heights = c(0.3, 0.3, rep(1, 3)))
+
+par(mar = c(1, 1, 1, 1))
+plot.text("Centromere by Nucleolar", cex = cex.lab)
+plot.text("Centromere by Sex", cex = cex.lab)
+plot.text("Nucleolar by Sex", cex = cex.lab)
+
+par(mar = c(0, 0, 0, 0))
+make.legend(nucleolar, lwd = 1.5, cex = 1.5)
+make.legend(sex, lwd = 1.5, cex = 1.5)
+make.legend(sex, lwd = 1.5, cex = 1.5)
+
+plot.text("FVCP", srt = 90, cex = cex.lab)
+par(mar = c(2,3,0,0))
+int.lines(FVCP, centromere, nucleolar, sig = FALSE, errors = TRUE)
+int.lines(FVCP, centromere, sex, sig = FALSE, errors = TRUE, yaxis = FALSE)
+int.lines(FVCP, nucleolar, sex, sig = TRUE, errors = TRUE, yaxis = FALSE)
+
+par(mar = c(1, 1, 1, 1))
+plot.text("DLCP", srt = 90, cex = cex.lab)
+par(mar = c(2,3,0,0))
+int.lines(DLCP, centromere, nucleolar, sig = FALSE)
+int.lines(DLCP, centromere, sex, sig = FALSE)
+int.lines(DLCP, nucleolar, sex, sig = FALSE)
+dev.off()
+
+#also plot just the significant and almost significant interactions
+fig.int.height <- g3.fig.min.width
+fig.int.width <- fig.int.height*0.45
+pdf(here("results", "Figures", "Fig_Lung_Trait_Interactions_Sig.pdf"), width = fig.int.height, height = fig.int.width)
+# quartz(width = fig.int.height, height = fig.int.width)
+layout.mat <- matrix(c(1:6), nrow = 2, byrow = TRUE)
+layout(layout.mat, widths = c(1,1), heights = c(0.3, 1))
+# layout.show(9)
+legend.cex <- 1;legend.lwd = 1
+par(mar = c(0, 0, 0, 0), ps = 9)
+legend.x <- 0.25;legend.y <- 0.8
+make.legend(sex, lwd = legend.lwd, cex = legend.cex, x = legend.x, y = legend.y)
+make.legend(sex, lwd = legend.lwd, cex = legend.cex, x = legend.x, y = legend.y)
+make.legend(sex, lwd = legend.lwd, cex = legend.cex, x = legend.x, y = legend.y)
+
+par(mar = c(4,3,0,0));ylab.line = 1.8; xlab.line = 1.3
+int.lines(FVCP, nucleolar, sex, sig = TRUE, errors = TRUE, yaxis = TRUE, lwd = 1, names.cex = 1.5)
+mtext(side = 2, "FVCP", line = ylab.line);mtext(side = 1, "Nucleolar", line = xlab.line)
+int.lines(DLCP, centromere, sex, sig = FALSE, lwd = 1, names.cex = 1.5)
+mtext(side = 2, "DLCP", line = ylab.line);mtext(side = 1, "Centromere", line = xlab.line)
+int.lines(DLCP, nucleolar, sex, sig = FALSE, lwd = 1, names.cex = 1.5)
+mtext(side = 2, "DLCP", line = ylab.line);mtext(side = 1, "Nucleolar", line = xlab.line)
+dev.off()
+
+```
+
+## Single marker effects
+We first tested the main effect of each SNP with a linear model. There were significant
+main effects on 
+
+
+## Filter SNPs
+Because CAPE cannot test all pairs of markers exhaustively, we need to filter the markers 
+to those that are most likely to have interactions in this data set. CAPE uses information 
+from pleiotropic markers to identify epistasis. We thus selected markers based on both 
+epistasis and pleiotropy criteria. We used MatrixEpistasis [@Zhu:dn], which is an ultra-fast 
+matrix-based method that can test all the pairs in the data set exhaustively. We set the p 
+value filter at 1e-6 and use sex as a covariate (specified above).
+
+The next function runs MatrixEpistasis and asks for pairs with p values below a given cutoff. 
+It saves the results for each phenotype. After running MatrixEpistasis, it goes through the
+phenotype pairs and gets the unique SNPs from the most significant pairs across all traits. 
+This function takes a long time to run, so I am not running it here.
+
+The parameter to note is the p value. I used a cutoff of p = 1e-6, so MatrixEpistasis will 
+only return pairs that have that p value or less.
+
+```{r matrixepistasis, eval = FALSE}
+selected.SNPs <- filterSNPs(SScPop, geno, target.markers = 1500, ref.allele = "A", 
+pval = 1e-6, chunk.size = 5000, n.cores = 4)
+```
+
+This function saves a file for each phenotype that includes the top SNP pairs for each 
+phenotype based on the p value threshold. By running filterSNPs again, but skipping the 
+MatrixEpistasis step, we can take a closer look at these pairs. For example, we can see which 
+epistatic pairs are also pleiotropic, meaning they influence more than one phenotype.
+
+```{r pair_overlap, cache = TRUE, fig.width = 5, fig.height = 5, eval = FALSE}
+filterSNPs(SScPop, geno, run.matrixEpistasis = FALSE, target.markers = 1500)
+```
+
+There isn't much overlap among the traits. There are 52 pairs shared between the two lung 
+phenotypes.
+filterSNPs keeps all SNPs in these pairs that are both epistatic and pleiotropic. Then it 
+moves on to the single-marker stats. Single markers can influence multiple traits when paired 
+with other markers. Even it the marker pair is different, individual markers might epistatically 
+influence multiple traits. flterSNPs finds the SNPs that are the most pleiotropic in the 
+following way:
+
+While we have not reached our target number of markers:
+Start at N = the number of traits tested.
+
+1) Find all SNPs that influence N traits. 
+2) If we can add all of these SNPs to our list, add them. 
+3) If this will make the list too big, sort the SNPs by their representation in the traits. 
+For example, a SNP that influenced one trait in twelve pairs will be prioritized over a SNP 
+that influenced one trait in five pairs. 
+4) Add SNPs in order of their influence until we have reached the target number of markers.
+
+We then run cape using this list of filtered SNPs and the following parameters:
+
+```{r parameters}
+param.file <- here("results", "cape.parameters.txt")
+param.table <- readParameters(param.file)
+kable(param.table[which(!is.na(param.table[,1])),])
+```
+
+Before we run cape, we also want to check for population structure to decide whether we 
+should do a correction for population structure. To test for structure, we performed single
+marker regression at each marker to look for associations with each trait. Under the null
+hypothesis, p values are uniformly distributed. If there is population structure influencing 
+the results, we expect to see a substantial deviation from this distribution creating inflated
+significance for a substantial number of markers. On the other hand, if the p value distributions
+are largely uniform with a few markers deviating from this distribution, there is no population
+structure to correct for.
+
+The following figure shows the expected distribution of the -log p values compared to the 
+theoretical distribution. There are a few deviations from the expected for both the nucleolar 
+and centromere traits indicating that there are a few SNPs with significant main effects.
+There is no deviation from the expected distribution at all for the two lung traits. Taken
+together, these results indicate that there is no effect of population structure in this 
+cohort. Therefore, we did not correct for population structure.
+
+
+```{r marker_regression, fig.height = 8, fig.width = 8, eval = FALSE}
+#need to debug this
+
+
+regression.file <- here("results", "single.regression.RData")
+sub.geno <- get.geno(SScPop, geno)
+geno.mat <- sub.geno[,2,]
+
+if(!file.exists(regression.file)){
+	get.lin.p <- function(y,x){
+		num.y <- length(unique(y[which(!is.na(y))]))
+		if(num.y == 2){fam = "binomial"}
+		if(num.y > 2){fam = "gaussian"}
+		y <- y - min(y, na.rm = TRUE)
+		y <- y/max(y, na.rm = TRUE)
+		model <- glm(y~x, family = fam)
+		modelc <- coefficients(summary(model))
+		p <- modelc[nrow(modelc), ncol(modelc)]
+		return(p)
+	}
+
+	all.p <- matrix(NA, ncol = ncol(SScPop$pheno), nrow = ncol(geno.mat))
+	colnames(all.p) <- colnames(SScPop$pheno)
+	for(i in 1:ncol(SScPop$pheno)){
+		cat(i, "\n")
+		pvals <- unlist(lapply_pb(1:ncol(geno.mat), function(x) get.lin.p(SScPop$pheno[,i], geno.mat[,x])))
+		#pvals <- apply(geno.mat, 2, function(x) get.lin.p(SScPop$pheno[,i], x))
+		all.p[,i] <- pvals
+	}
+
+	save(all.p, file = regression.file)
+}else{
+	all.p <- readRDS(regression.file)
+}
+
+jpeg(here("results", "Figures", "Supplemental_Figure_Population_Structure.jpg"), 
+width = 7, height= 7, units = "in", res = 300)
+par(mfrow = c(2,2))
+for(i in 1:ncol(all.p)){
+	qqnorm(qnorm(all.p[,i]), main = colnames(SScPop$pheno)[i])
+	qqline(qnorm(all.p[,i]))
+}
+dev.off()
+```
+
+Here we are running CAPE with two of four eigentraits. These eigentraits contrast the two 
+lung function tests with each of the autoantibodies in turn.
+
+```{r, eig.traits, fig.height = 6, fig.width = 6}
+eig.pop <- get.eigentraits(SScPop)
+var.accounted <- plotSVD(eig.pop)
+```
+
+```{r eig.fig, echo = FALSE}
+#also make pdf for SVD figure
+fig.width <- g3.fig.min.width
+fig.height <- fig.width
+
+pdf(here("results", "Figures", "Fig_SVD.pdf"), width = fig.width, height = fig.height)
+par(xpd = TRUE)
+plotSVD(eig.pop, main = "", pheno.labels = c("ACA", "ANA", "FVCP", "DLCP"), 
+pheno.label.pos = 0.6, cex.barplot.title = 1.5, percent.total.variance.x = 0.35, 
+percent.total.variance.y = 0.15, cex.color.scale = 1.2, orientation = "vertical", ET.label.x = 0.25,
+var.accounted.x = -0.25, var.accounted.y = max(var.accounted*0.1), cex.var.accounted = 1.7)
+par(xpd = FALSE)
+dev.off()
+```
+
+```{r run_cape, eval = FALSE}
+system(paste("cp filteredSNPs.txt", results.dir))
+final.pop <- run.cape(SScPop, geno)
+```
+
+```{r read_results, out.height = 6, out.width = 6}
+pop.data <- here("results", "cross.RData")
+SScPop <- readRDS(pop.data)
+```
+
+These SNPs filtered for both pleiotropy and epistasis formed a CAPE network.
+
+```{r net_plot, fig.width = 6, fig.height = 6, cache = TRUE}
+plotNetworkDO(SScPop, show.alleles = FALSE)
+```
+
+The table of significant SNP interactions is as follows:
+
+```{r int_table}
+var.inf <- writeVariantInfluences(SScPop, include.main.effects = FALSE, write.file = FALSE)
+knitr::kable(as.data.frame(var.inf[,c(1,2,4,5,10,14)]))
+```
+
+We used [SNPNexus](http://www.snp-nexus.org) to learn more about the individual SNPs. 
+In particular we identified the nearest (or overlapping) gene for each SNP. We assigned 
+each SNP to its nearest gene. The nodes are labeled with the gene nearest to the SNP. 
+Node color indicates whether the SNP overlaps the gene, is upstream, or downstream, and 
+node shape indicates whether the gene is protein coding, or another type of gene. Edge color
+indicates positive (enhancing) and negative (suppressing) interactions.
+
+
+```{r snp_nexus, fig.width = 10, fig.height = 6}
+snp.file <- here("data", "ncsnp_11708.txt")
+snp.gene.table <- as.matrix(read.table(snp.file, sep = "\t", stringsAsFactors = FALSE, header = TRUE))
+snp.net <- SNPNexus.to.gene.net(SScPop, snp.gene.table, vertex.size = 40, label.x.shift = 0.3,
+label.y.shift = 0.1)
+```
+
+```{r network_figure, echo = FALSE}
+pdf(here("results", "Figures", "Fig_SNP_Net.pdf"), width = 9, height = 6)
+snp.net <- SNPNexus.to.gene.net(SScPop, snp.gene.table, vertex.size = 40, label.x.shift = 0.3,
+label.y.shift = 0.1, cex.label = 1.8)
+dev.off()
+```
+
+The two most significant interactions are suppressing and create a three-node subnetwork between
+three SNPs that overlap protein coding genes: WNT5A, RBMS3, and MSI2. WNT signaling is known 
+to be involved in SSc, and for the remainder of this study, we focus on this top subnetwork. 
+
+```{r top_ints}
+top.ints <- var.inf[1:2, c("Source", "Target")]
+top.int.genes <- top.ints #replace the SNP names with gene names
+top.int.genes[,1] <- snp.gene.table[match(gsub("_B", "", top.ints[,1]), snp.gene.table[,2]), 5]
+top.int.genes[,2] <- snp.gene.table[match(gsub("_B", "", top.ints[,2]), snp.gene.table[,2]), 5]
+```
+
+The SNPs interacting in this network are the following:
+
+```{r top_snps}
+top.snps <- unique(as.vector(top.ints))
+cat(top.snps, sep = "\t")
+top.genes <- unique(as.vector(top.int.genes))
+cat(top.genes, sep = "\t")
+```
+
+## Gene Expression
+
+The following data set measured gene expression in SSc and control lungs 
+[GSE76808](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE76808). 
+Samples were obtained from open lung biopy in 28 consecutive patients with 
+SSc-related interstitial lung disease and four controls. We looked for 
+differential expression of the genes in our epistatic network.
+
+We used the "Analyze with GEO2R" button on the GEO website to get the data downloaded and 
+normalized properly. Then we added custom code to look for expression differences in 
+individual genes. 
+
+The following functions download the GEO data set, normalize it, and write out the expression 
+data as well as a gene ID table in `r data.dir`
+
+They then read in the expression data and plot expression differences in the genes identified
+in the epistatic network.
+
+We first looked at expression in the lung:
+
+```{r lung_GEO_dataset}
+dataset <- "GSE76808" #Association of Interferon- and Transforming Growth Factor-Regulated 
+					  #Genes and Macrophage Activation With Systemic Sclerosis-Related 
+					  #Progressive Lung Fibrosis
+
+```
+
+```{r get_GEO_lung, cache = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+geo.fun <- match.fun(paste0("Download_SSc_", dataset))
+geo.fun(path = data.dir)
+```
+
+
+```{r remove_char_lung, include=FALSE}
+#remove all apostrophes from the top table
+in.file <- here("data", paste0("Top_table_", dataset, ".txt"))
+out.file <- here("data", "Top_table_temp.txt")
+command <- paste0('sed "s/\'//g" ', in.file,' > ', out.file)
+system(command)
+unlink(in.file)
+system(paste("mv", out.file, in.file))
+```
+
+The expression values are normalized by patient, and there do not appear to be any 
+batch effects in these data.
+
+```{r view_data, fig.height = 5, fig.width = 8}
+expr <- read.table(here("data", paste0("Expression_Table_", dataset, ".txt")), stringsAsFactors = FALSE, sep = "\t", header = TRUE)
+gene.id.table <- read.table(here("data", paste0("Top_table_", dataset, ".txt")), stringsAsFactors = FALSE, sep = "\t", header = TRUE)
+pt.class <- sapply(strsplit(colnames(expr), "_"), function(x) x[2])
+pt.cols <- brewer.pal(8, "Pastel1")
+pt.col <- rep(pt.cols[1], length(pt.class))
+pt.col[which(pt.class == "SSc")] <- pt.cols[2]
+boxplot(expr, col = pt.col, las = 2)
+```
+
+```{r plot_expression_lung, fig.height = 5, fig.width = 8}
+deg.expr <- DEG.in.GEO(top.genes, gene.id.table, expr, return.data = "all")
+```
+
+```{r expression_figure}
+fig.width = g3.fig.min.width
+fig.height = g3.fig.min.width/2
+pdf(here("results", "Figures", "Fig_DEG.pdf"), width = fig.width, height = fig.height)
+par(mfrow = c(1,2), mar = c(1,3,2,0))
+for(i in 1:length(deg.expr)){
+	if(!is.null(deg.expr[[i]])){
+		gene.expr <- deg.expr[[i]][[1]]
+		ymax <- max(unlist(gene.expr), na.rm = TRUE)
+		ymin <- min(unlist(gene.expr), na.rm = TRUE)
+		plot.height <- ymax - ymin
+		boxplot(gene.expr, axes = FALSE, main = names(deg.expr)[i], cex = 0.7, cex.main = 0.9)
+		axis(2, at = signif(segment.region(ymin, ymax, 4, "ends"), 2))
+		par(xpd = TRUE)
+		text(x = c(1,2), y = (ymin - (plot.height*0.1)), labels = names(gene.expr))
+		if(i == 1){
+			mtext("Expression (A.U.)", side = 2, line = 2)
+		}
+		par(xpd = FALSE)
+		stripchart(gene.expr, vertical = TRUE, pch = 16, add = TRUE)
+	}
+}
+dev.off()
+```
+
+Both WNT5A and RBMS3 were upregulated in SSc lung samples. MSI2 was not present in this data set.
+
+
+## Gene coexpression
+Identifying clusters of co-expressed genes can provide clues to the functions of genes with unknown
+functions. We used this principle to identify possible functional roles of the two interactions 
+in the top subnetwork. We used the two pairs of genes as query genes in the Search-Based Exploration of 
+Expression Compendium (SEEK) \cite{seek}. We restricted our search to subsets of experiments with 
+potentially informative subjects (Table XXX table showing terms used and number of data sets 
+associated with each term). We found all genes that were significantly correlated (p < 0.05) with 
+the query genes in each subset of data sets, and looked for functional enrichment among the genes 
+using gprofiler \cite{gprofiler}.
+
+```{r gene_enrichment}
+#set up objects to hold the gprofiler for both pairs
+#name them by the interaction pair
+pair.sig.enrichments <- vector(mode = "list", length = nrow(top.int.genes))
+names(pair.sig.enrichments) <- apply(top.int.genes, 1, function(x) paste0(x, collapse = "_"))
+for(gp in 1:nrow(top.int.genes)){
+	pair.dir <- here("data", "SEEK", names(pair.sig.enrichments)[gp])
+	pair.sig.enrichments[[gp]] <- SEEK.enrichment(top.int.genes[gp,], pair.dir, pval = 0.05)
+	}
+```
+
+We plotted the $-log_{10}$ of the p value of the enrichments for all data sets for each pair.
+We highlighted terms that are relevant to SSc. We selected the following terms:
+
+```{r highlight_terms}
+highlight.terms <- c("collagen", "matrix", "fibroblast", "growth factor", "vascular", "vaso", "wound", "wnt")
+```
+Supplemental\_Figure\_SEEK\_enrichment.pdf shows the $-log_{10}$ of the p value for each
+term in each subset of data sets. Terms containing strings matching the strings above are
+colored blue.
+
+```{r plot_enrichment}
+pdf(here("results", "Figures", "Supplemental_Figure_SEEK_enrichment.pdf"), width = 11, height = 8)
+for(gp in 1:length(pair.sig.enrichments)){
+	all.enrich.sig <- pair.sig.enrichments[[gp]]
+	for(i in 1:length(all.enrich.sig)){
+		all.enrich.sig[[i]] <- plot.enrichment.vis(all.enrich.sig[[i]], 
+		num.terms = nrow(all.enrich.sig[[i]]), plot.label = 
+		paste("Enrichment of Genes Significantly Correlated with\n", names(pair.sig.enrichments)[gp],
+		"in", names(all.enrich.sig)[i]),
+		highlight.terms = highlight.terms)
+		pair.sig.enrichments[[gp]] <- all.enrich.sig
+		}
+	}
+dev.off()
+```
+
+For easier visualization, we can combine the results into a single matrix showing the $-log_{10}$
+p values for all terms. We collected all terms that were relevant to SSc across the data sets
+and plotted them against each other in a single matrix.
+
+```{r plot_enrichment_matrix}
+sig.mats <- plot.all.SEEK.terms(pair.sig.enrichments)
+```
+
+```{r enrich_figure, echo = FALSE}
+#plot the results in a figure
+
+full.mat <- Reduce("cbind", sig.mats)
+
+alpha = 0.3
+highlight.cols <- c("green" = rgb(127/255,201/255,127/255, alpha = alpha), 
+					"purple" = rgb(190/255,174/255,212/255, alpha = alpha),
+					"orange" = rgb(253/255,192/255,134/255, alpha = alpha),
+					"blue" = rgb(166/255,206/255,227/255, alpha = alpha),
+					"red" = rgb(251/255,154/255,153/255, alpha = alpha),
+					"yellow" = rgb(255/255,255/255,51/255, alpha = alpha))
+
+fig.width = g3.fig.min.width*1.7
+fig.height = g3.fig.min.width*1.3
+
+pdf(here("results", "Figures", "Fig_Enrichment_Heatmap.pdf"), 
+width = fig.width, height = fig.height)
+
+layout(matrix(c(1,2), nrow = 1), widths = c(1, 0.2))
+par(mar = c(5, 13.6, 2, 4))
+imageWithText(full.mat, use.pheatmap.colors = TRUE, na.col = "#d9d9d9", 
+row.names = rownames(full.mat), col.names = colnames(full.mat), row.text.cex = 0.7, 
+col.text.cex = 0.7, row.text.shift = -0.8, col.text.shift = -1.6, show.text = FALSE)
+
+#add grid lines
+top.row.fudge <- 0.65;bottom.row.fudge = 0.78
+left.col.fudge <- 0.5;right.col.fudge = 0.5
+plot.dim <- par("usr")
+for(i in 1:ncol(full.mat)){
+	segments(i-0.5, plot.dim[4]-top.row.fudge, i-0.5, plot.dim[3]+bottom.row.fudge, col = "gray")
+	}
+for(i in 1:nrow(full.mat)){
+	segments(plot.dim[2]-left.col.fudge, i-0.5, plot.dim[1]+right.col.fudge, i-0.5, col = "gray")
+	}
+
+#add line dividing two interactions
+abline(v = (ncol(full.mat)/2)+0.5, col = 'white', lwd = 3)
+
+#add lines dividing the categories.
+highlight.terms <- c("collagen", "matrix", "growth factor", "vas", "wound", "wnt")
+highlight.categories <- c("Collagen", "ECM", "Growth Factor", "Vascular", "Wound Healing", "Wnt")
+
+highlight.y <- lapply(highlight.terms, function(x) grep(x, rownames(full.mat), ignore.case = TRUE))
+#remove any collagen terms from the matrix term list
+highlight.y[[2]] <- setdiff(highlight.y[[2]], highlight.y[[1]])
+names(highlight.y) <- highlight.categories
+
+highlights <- lapply(highlight.y[1:(length(highlight.y)-1)], function(x) 
+abline(h = (plot.dim[4]-(max(x)+0.5)), col = "white", lwd = 3))
+
+#draw transparent polygons around terms to highlight
+par(xpd = TRUE)
+for(i in 1:length(highlight.y)){
+	draw.rectangle(-21.5, 0.5, plot.dim[4]-min(highlight.y[[i]])+0.5,
+	plot.dim[4]-max(highlight.y[[i]])-0.5, border.col = "gray",
+	fill = highlight.cols[i], lwd = 0.5)
+}
+
+#add group labels
+for(i in 1:length(highlight.y)){
+	label.y <- nrow(full.mat) - mean(highlight.y[[i]]) + 1
+	cat.name <- names(highlight.y)[i]
+	text(x = plot.dim[2]-0.2, y = label.y, labels = cat.name, cex = 0.7, adj = 0)
+	}
+
+par(mar = c(7, 2, 7, 2))
+imageWithTextColorbar(full.mat, use.pheatmap.colors = TRUE, cex = 0.7, 
+axis.line = -2.1, ax.min = 5, ax.max = 55, n.ax.ticks = 6, padj = 1, bounding.box = FALSE)
+
+dev.off()
+
+```
+
+
+## Clinical significance
+
+The top two SNP interactions affect the traits in the following way:
+
+```{r int_effects, fig.height = 4, fig.width = 10}
+par(mar = c(6,7,6,3))
+for(i in 1:nrow(top.ints)){
+    plot.effects(SScPop, top.ints[i,1], top.ints[i,2], plot.type = "b", 
+	error.bars = "se", marker1.label = top.int.genes[i,1], 
+	marker2.label = top.int.genes[i,2], genotype.labels = c("O", "+"))
+    }
+```
+
+```{r int_figue}
+#plot effects as figures as well
+fig.width = g3.fig.max.width
+fig.height <- fig.width/4
+for(i in 1:nrow(top.ints)){
+	pdf(here("results", "Figures", paste0("Fig_Effects", i, ".pdf")), 
+	width = fig.width, height = fig.height)
+	par(mar = c(3,5,2,3))
+    plot.effects(SScPop, top.ints[i,1], top.ints[i,2], plot.type = "b", 
+    error.bars = "se", marker1.label = top.int.genes[i,1], 
+    marker2.label = top.int.genes[i,2], pheno.labels = c("ACA", "ANA", "FVCP", "DLCP"),
+	genotype.labels = c("O", "+"), cex.axis = 1.2, cex.text = 1.2)
+	dev.off()
+    }
+```
+
+The interaction between RBMS3 and MSI2 has less than additive effects on both autoantibodies,
+and no real effect on the lung traits. The RBMS3 and WNT5A interaction has a less than additive
+effect on the presence of the nucleolar autoantibody as well as the two lung traits. Less than
+additive effects suggest that the interacting genes operate in a single pathway, and that the
+effects of the alternate alleles are redundant. In both interactions, both alternate alleles 
+also affect all traits in the same direction, either negatively or positively.
+
+
+
+
+##The WNT5A subnetwork
+
+In the rs1449292 -> rs556874 interaction, the rs1449292 (RBMS3) allele alone has a negative 
+effect on lung function, while the rs556874 (WNT5A) allele has a slight negative effect. 
+For both FVCP and DLCP, patients with both alternate alleles are not as bad off as we would
+expect from the additive model, suggesting that these genes may be acting within a pathway
+to influence lung function. The other interaction primarily influences autoantibodies, rather
+than lung function. The interaction is additive for the lung function traits, but much less
+than additive for both autoantibodies. Both SNPs increase the prevalence of centromere AA
+and decrease the prevalence of nucleolar AA. In both cases, the double alternate allele
+carriers have similar autoantibody levels to each of the single allele carriers. Maybe this
+interaction is more related to the autoimmune part of SSc while the RBMS3/WNT5 interaction
+is more related to lung function. RBMS3 sits at the intersection of the two interactions
+influencing both autoimmunity and lung function.
+
+
+*rs556874* is located in intron 4 of 4 of WNT5A.
+WNT signaling is known to be involved in SSc [cite]. WNT5A signaling has been shown to be 
+involved in angiogenesis [@wnt5a_angiogenesis], epithelial-to-mesenchymal transition (EMT) in
+lung cancer [@wnt5a_lungcancer], as well as the differentiation and inflammatory response
+of keratinocytes [@wnt5a_keratinocytes]. All of these processes are relevant to SSc.
+This SNP also lies in a human QTL for Rheumatoid arthritis [@RA_qtl] (RA4), and COPD 
+(COPD14 and COPD16) [@copd_qtl14].
+
+*rs1449292* is located in intron 8 of 13 of RBMS3. It is located in a human QTL for RA (RA3) 
+[@RA_qtl] as well as two allergic atopic 
+asthma related QTLs (AASTH43 and AASTH44) [@asthma_qtl]. RBMS3 encodes an RNA-binding protein
+that belongs to the c-myc gene single-strand binding protein family. This family of genes is
+involved in wide-ranging processes. [RBSM3](https://www.ncbi.nlm.nih.gov/gene/27303) itself is 
+expressed in skin and highly expressed in lung. It has been shown to inhibit the proliferation 
+and metastasis of breast cancer cells through inactivation of the Wnt/beta-catening signaling
+pathway [@rbsm3_wnt] as well as to inhibit EMT and invation in gastric cells by inhibiting 
+canonical Wnt signaling \cit{rbms3EMT}. It also inhibits microvessel formation through 
+downregulation of MMP2 and beta-catenin [@rbsm3_angiogenesis]. SNPs in RBMS3 were identified 
+as novel risk factors for Sjogren's syndrome in Chinese women [@rbsm3_sjogrens]. This gene was 
+isolated by virtue of its binding to an upstream element of the alpha2(I) collagen promoter 
+[@rbms3_collagen]. RBMS3 may also indirectly influence collagen synthesis through controling 
+expression of Px1 [@rbms3_collagen2].
+
+*rs792399* is located in intron 5 of 13 of the gene MSI2. It is located in COPD QTL 12 
+[@copd_qtl14] and RA QTL 26 [@RA_qtl]. MSI2 encodes another 
+RNA-binding protein in the Musashi protein family. It has mostly been studied in the context of
+cancer and has been implicated in EMT \cite{msi2EMT}. It is upregulated in metastitic-competent
+lung cancer cell lines and upregulation was associated with aggressively metastatic tumors in 
+patient biopsies \cite{msi2EMT2}. Depletion of MSI2 was associated with reduced invasion and
+metastatic potential and induced expression of genes associated with epithelial identity, and 
+downregulated genes associated with EMT, such as TGF-beta \cite{msi2EMT2}. MSI2 may influence
+hepatitis B virus related hepatocellular carcinoma outcomes by dysregulating Wnt signaling 
+\cite{msi2Wnt}.
+
+Each of the three SNPs is in one RA QTL, and one lung-related QTL. Two of the SNPs are in COPD 
+QTL, and one is in an allergic atopic asthma related QTL. So all three regions are associated
+with lung function and autoimmunity.
+
+There is a clear relationship between WNT5A and RBMS3 and SSc, and there is a clear relationship
+between the two genes, as RBMS3 is known to regulate WNT signaling.
+
+We hypothesize that these three genes interact in SSc to influence both autoantibody status
+and lung function. 
+
+## References
+
+
+
+
+
+
+
+
+
+
+
+
+
+
