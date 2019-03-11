@@ -1,0 +1,5 @@
+ID	SNP	Chromosome	Position	Overlapped Gene	Type	Annotation	Nearest Upstream Gene	Type of Nearest Upstream Gene	Distance to Nearest Upstream Gene	Nearest Downstream Gene	Type of Nearest Downstream Gene	Distance to Nearest Downstream Gene
+chr6:32398644:T/C:1	rs4248166	chr6	32398644	BTNL2	protein_coding	intronic						
+chr6:32609603:A/G:1	rs660895	chr6	32609603				HLA-DRB1	protein_coding	19755	HLA-DQA1	protein_coding	18576
+chr6:32684540:A/G/T:1	rs7755224	chr6	32684540				HLA-DQB1	protein_coding	16157	MTCO3P1	unprocessed_pseudogene	21584
+chr6:32701379:T/C:1	rs9275390	chr6	32701379				HLA-DQB1	protein_coding	32996	MTCO3P1	unprocessed_pseudogene	4745

@@ -1,0 +1,29 @@
+#================================================
+# General Parameters 
+#================================================
+traits 	 centromere nucleolar pf1_fvcp pf1_dlcp 
+covariates 	 sex 
+scan.what 	 Eigentraits 
+traits.scaled 	 TRUE 
+traits.normalized 	 TRUE 
+eig.which 	 1 2 
+pval.correction 	 fdr 
+
+#================================================
+# Single Scan Parameters 
+#================================================
+ref.allele 	 A 
+singlescan.perm 	 0 
+
+#================================================
+# Marker Selection Parameters 
+#================================================
+marker.selection.method 	 from.list 
+SNPfile 	 filteredSNPs.txt 
+
+#================================================
+# Pairscan Parameters 
+#================================================
+max.pair.cor 	 0.5 
+pairscan.null.size 	 1500000 
+
