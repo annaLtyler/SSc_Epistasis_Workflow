@@ -1,0 +1,15 @@
+#!/bin/bash
+
+#PBS -l nodes=1:ppn=20,walltime=24:00:00
+# mail is sent to you when the job starts and when it terminates or aborts
+#PBS -m bea
+# specify your email address
+#PBS -M anna.tyler@jax.org
+#specify which queue. options are interactive, long, and batch
+#PBS -q long
+
+cd $PBS_O_WORKDIR
+
+module load R/3.4.1  #load the default R module
+
+R --no-restore --no-save --quiet < filterSNPs_matrixEpistasis.R

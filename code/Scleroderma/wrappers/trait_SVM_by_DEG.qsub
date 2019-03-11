@@ -1,0 +1,9 @@
+#!/bin/bash
+
+#PBS -l nodes=1:ppn=1,walltime=48:00:00
+
+cd $PBS_O_WORKDIR
+
+module load R  #load the default R module
+
+R --no-restore --no-save --quiet < trait_SVM_by_DEG.R
