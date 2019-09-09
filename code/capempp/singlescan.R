@@ -251,7 +251,8 @@ singlescan <- function(data.obj, geno.obj, kin.obj = NULL, n.perm = 100, scan.wh
 				  cl <- makeCluster(n.cores)
 				  registerDoParallel(cl)
 				  results.by.chr <- foreach(x = 1:dim(c.geno)[locus.dim], .export = c("get.stats.multiallele", "check.geno")) %dopar% {
-				    get.stats.multiallele(phenotype = c.pheno, genotype = c.geno[,,x], covar.table = c.covar, ph.family, ref.col)
+				    get.stats.multiallele(phenotype = c.pheno, genotype = c.geno[,,x], 
+				    covar.table = c.covar, ph.family, ref.col)
 				  }
 				  stopCluster(cl)
 

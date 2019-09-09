@@ -56,7 +56,7 @@ linkage.blocks.network <- function(data.obj, collapse.linked.markers = TRUE, thr
 	#find all the chromosomes that were used in the pairwise scan and sort them
 	used.markers <- colnames(data.obj$geno.for.pairscan)
 	all.marker.chr <- unlist(lapply(strsplit(used.markers, "_"), get.chr))
-	u_chr <- sort(unique(as.numeric(all.marker.chr)))
+	u_chr <- unique(all.marker.chr)
 	
 	#put 0 at the end
 	if(u_chr[1] == 0){
@@ -139,7 +139,7 @@ linkage.blocks.network <- function(data.obj, collapse.linked.markers = TRUE, thr
 	num.blocks <- 1
 	for(ch in u_chr){
 		chr.blocks = 1
-		chr.markers <- used.markers[which(as.numeric(all.marker.chr) == as.numeric(ch))]
+		chr.markers <- used.markers[which(all.marker.chr == ch)]
 		chr.alleles <- unlist(lapply(strsplit(chr.markers, "_"), get.allele))
 		
 		

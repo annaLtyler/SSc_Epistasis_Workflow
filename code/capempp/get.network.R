@@ -92,7 +92,8 @@ get.network <- function(data.obj, p.or.q = 0.05, min.std.effect = 0, standardize
 	split.again <- strsplit(split.labels, "_")
 	chr.num <- unlist(lapply(split.again, function(x) x[1]))
 	block.num <- unlist(lapply(split.again, function(x) x[2]))
-	new.order <- sortByThenBy(tableX = cbind(chr.num, block.num), sort.cols = c(1,2), col.type = c("n", "n"), return.order = TRUE)
+	chr.order <- match(chr.num, unique(data.obj$chromosome))
+	new.order <- sortByThenBy(tableX = cbind(chr.order, block.num), sort.cols = c(1,2), col.type = c("n", "n"), return.order = TRUE)
 	
 	#put in chromosome order
 	adj.mat <- adj.mat[new.order[,1],]

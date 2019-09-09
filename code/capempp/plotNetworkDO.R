@@ -3,8 +3,6 @@
 #collapsed.net = TRUE; trait = NULL; phenotype.labels = NULL; main.lwd = 4; inter.lwd = 3; label.cex = 1.5; percent.bend = 15; chr.gap = 1; label.gap = 5; positive.col = "brown"; negative.col = "blue";show.alleles = FALSE; allele.labels = NULL
 
 plotNetworkDO <- function(data.obj, marker.pairs = NULL, collapsed.net = TRUE, trait = NULL, phenotype.labels = NULL, ref.allele = "B", color.scheme = c("DO/CC", "other"), main.lwd = 4, inter.lwd = 3, label.cex = 1.5, percent.bend = 15, chr.gap = 1, label.gap = 5, positive.col = "brown", negative.col = "blue", show.alleles = TRUE, allele.labels = NULL){
-
-	require(shape)
 	
 	pos.col <- get.color(positive.col)[3]
 	neg.col <- get.color(negative.col)[3]
@@ -18,7 +16,7 @@ plotNetworkDO <- function(data.obj, marker.pairs = NULL, collapsed.net = TRUE, t
 	all.chr <- data.obj$chromosome
 	all.pos <- data.obj$marker.location
 	all.pos[which(all.pos == 0)] <- 1 #we can't place markers as position 0. Change any 0s to 1.
-	chr <- sort(unique(as.numeric(all.chr)))
+	chr <- unique(all.chr)
 	num.true.chr = length(chr)
 	names(chr) <- rep("chr", num.true.chr)
 	

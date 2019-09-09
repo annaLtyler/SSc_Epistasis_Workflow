@@ -50,8 +50,8 @@ verbose = TRUE, run.parallel = TRUE, save.results = TRUE, plot.results = TRUE){
 		if(is.null(kin.obj)){
 			kin.obj <- Kinship(data.obj, geno.obj, type = kinship.type, pop = pop)
 			if(save.results){saveRDS(kin.obj, kin.file)}
-				}
-			}
+		}
+	}
 						
 		#===============================================================
 		# We need a complete genotype matrix to calculate the kinship
@@ -71,7 +71,7 @@ verbose = TRUE, run.parallel = TRUE, save.results = TRUE, plot.results = TRUE){
 		if(file.exists(imp.geno.file)){
 			data.obj <- readRDS(imp.data.file)
 			geno.obj <- readRDS(imp.geno.file)		
-			}else{ #otherwise, check the genotype object for missing data
+		}else{ #otherwise, check the genotype object for missing data
 			geno <- get.geno(data.obj, geno.obj)
 			missing.vals <- which(is.na(geno))
 			if(length(missing.vals) > 0){ #if there are missing values, impute them
@@ -85,11 +85,12 @@ verbose = TRUE, run.parallel = TRUE, save.results = TRUE, plot.results = TRUE){
 			} #end case for when imputed files do not exist		
 		}
 		
+	if(save.results){saveRDS(data.obj, results.file)}
+
 	if(any(!run.singlescan, !run.pairscan, !error.prop.coef, !error.prop.perm)){
 		data.obj <- readRDS(results.file)
 		}else{
-	
-	
+
 		if(verbose){cat("Removing unused markers...\n")}
 		data.obj <- remove.unused.markers(data.obj, geno.obj)
 		combined.data.obj <- delete.underscore(data.obj, geno.obj)
@@ -136,9 +137,9 @@ verbose = TRUE, run.parallel = TRUE, save.results = TRUE, plot.results = TRUE){
 	#===============================================================
 	# run singlescan
 	#===============================================================
+	if(run.singlescan){
 	singlescan.results.file <- file.path(path, paste0(results.base.name, ".singlescan.RData"))
 
-	if(run.singlescan){
 		singlescan.obj <- singlescan(data.obj, geno.obj, kin.obj = kin.obj, n.perm = singlescan.perm, 
 		ref.allele = ref.allele, alpha = c(0.01, 0.05), scan.what = scan.what, verbose = verbose, 
 		run.parallel = run.parallel, n.cores = n.cores, model.family = "gaussian", overwrite.alert = FALSE)
@@ -150,9 +151,9 @@ verbose = TRUE, run.parallel = TRUE, save.results = TRUE, plot.results = TRUE){
 				fig.file <- file.path(path, paste0("Singlescan.", colnames(singlescan.obj$singlescan.effects)[ph], 
 				".Standardized.jpg"))
 				jpeg(fig.file, width = 20, height = 6, units = "in", res = 300)
-				plotSinglescan(data.obj, singlescan.obj = singlescan.obj, standardized = TRUE, allele.labels = NULL,
-				 alpha = c(0.05, 0.01), include.covars = TRUE, line.type = "l", pch = 16, cex = 0.5, lwd = 3, 
-				 traits = colnames(singlescan.obj$singlescan.effects)[ph])
+				plotSinglescan(data.obj, singlescan.obj = singlescan.obj, standardized = TRUE, 
+				allele.labels = NULL, alpha = c(0.05, 0.01), include.covars = TRUE, line.type = "l", 
+				pch = 16, cex = 0.5, lwd = 3, traits = colnames(singlescan.obj$singlescan.effects)[ph])
 				dev.off()
 				}
 	

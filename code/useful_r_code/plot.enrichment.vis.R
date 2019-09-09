@@ -3,7 +3,10 @@
 #the "gprofiler" option of order.by uses the default ordering from
 #gprofiler
 
-plot.enrichment.vis <- function(enrichment, num.terms = 10, text.size = 1, order.by = c("gprofiler", "p.value", "overlap.size", "term.size"), decreasing = FALSE, plot.label = "Enrichment", highlight.terms = NULL, highlight.col = "#1f78b4", mar = c(5,30,4,4)){
+plot.enrichment.vis <- function(enrichment, num.terms = 10, text.size = 1, 
+order.by = c("gprofiler", "p.value", "overlap.size", "term.size"), 
+decreasing = FALSE, plot.label = "Enrichment", highlight.terms = NULL, 
+highlight.col = "#1f78b4", mar = c(5,20,4,4)){
 
 	if(is.null(enrichment) || nrow(enrichment) == 0){
 		plot.new()

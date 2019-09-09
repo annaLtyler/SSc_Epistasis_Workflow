@@ -5,7 +5,13 @@
 #for the two markers.
 #marker = colnames(data.obj$geno)[1]; marker2 = colnames(data.obj$geno)[2]; pheno.transform = "Normalized"; plot.type = "l"; error.bars = "none"; ymin = NULL; ymax = NULL; covar = data.obj$p.covar; marker1.label = ""; marker2.label = ""; num.rows = 1; ref.centered = TRUE; sort.by = "genotype"; pheno = NULL; allele.subset = "none";pos.col = "brown"; neg.col = "blue"
 
-plot.effects <- function(data.obj, marker = NULL, marker2 = NULL, pheno.transform = "Normalized", plot.type = c("l", "p", "b", "a"), error.bars = "none", ymin = NULL, ymax = NULL, covar = NULL, marker1.label = "", marker2.label = "", num.rows = 1, ref.centered = TRUE, sort.by = "genotype", pheno = NULL, allele.subset = "none", pos.col = "brown", neg.col = "blue", gen.model = "Additive", report.p = c("empirical", "adjusted"), pheno.labels = NULL, genotype.labels = NULL, cex.axis = 1.5, cex.text = 1.5){
+plot.effects <- function(data.obj, marker = NULL, marker2 = NULL, 
+pheno.transform = "Normalized", plot.type = c("l", "p", "b", "a"), 
+error.bars = "none", ymin = NULL, ymax = NULL, covar = NULL, 
+marker1.label = "", marker2.label = "", num.rows = 1, ref.centered = TRUE, 
+sort.by = "genotype", pheno = NULL, allele.subset = "none", pos.col = "brown", 
+neg.col = "blue", gen.model = "Additive", report.p = c("empirical", "adjusted"), 
+pheno.labels = NULL, genotype.labels = NULL, cex.axis = 1.5, cex.text = 1.5){
 
 
 

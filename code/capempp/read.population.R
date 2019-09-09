@@ -8,7 +8,8 @@
 #specified with a name, the script will find its location. 
 
 
-read.population <- function(filename = NULL, pheno.col = NULL, geno.col = NULL, id.col = NULL, delim = ",", na.strings = "-", check.chr.order = TRUE) {
+read.population <- function(filename = NULL, pheno.col = NULL, geno.col = NULL, id.col = NULL, 
+delim = ",", na.strings = "-", check.chr.order = TRUE) {
 
 		if(is.null(filename)){
 			filename <- file.choose()
@@ -18,14 +19,16 @@ read.population <- function(filename = NULL, pheno.col = NULL, geno.col = NULL, 
 
 		if(!is.null(id.col)){
 			ind.names <- cross.data[3:nrow(cross.data),id.col]
-			if(any(duplicated(ind.names))){stop("There are duplicate individual IDs.\nPlease make sure all names are unique.")}
+			if(any(duplicated(ind.names))){
+				stop("There are duplicate individual IDs.\nPlease make sure all names are unique.")
+				}
 			cross.data <- cross.data[,-id.col]
 			}else{
 			ind.names <- 1:(nrow(cross.data)-2)
 			}
 
 	    #determine where phenotypes end and genotypes begin by blanks in row 1
-		beginGeno = match(FALSE, is.na(suppressWarnings(as.numeric(cross.data[1,]))))
+		beginGeno = match(FALSE, is.na(cross.data[1,]))
 	
 		#if no phenotypes are specified, just take all phenotypes
 		if(is.null(pheno.col)){
@@ -43,7 +46,8 @@ read.population <- function(filename = NULL, pheno.col = NULL, geno.col = NULL, 
 	
 		if(length(char.pheno) > 0){
 			message("All phenotypes must be numeric.")
-			cat("The following phenotype columns have character values:", colnames(cross.data)[char.pheno], sep = "\n")
+			cat("The following phenotype columns have character values:", 
+			colnames(cross.data)[char.pheno], sep = "\n")
 			cat("This error can occur if NA's are coded with multiple characters, or if na.strings is mis-specified. Make sure NA coding is consistent throughout the data set and specified correctly with na.strings.")
 			return(NULL)
 			}

@@ -4,9 +4,7 @@
 
 writePopulation <- function(data.obj, geno.obj, ref.allele = "A", na = NA, filename = "capeData.csv"){
 	
-  if(class(geno.obj)=="array"){
-    geno.obj<-geno.obj}
-  else{geno.obj<-geno.obj$geno}
+  if(class(geno.obj)=="array"){geno.obj<-geno.obj}else{geno.obj<-geno.obj$geno}
   
 	if(dim(geno.obj)[2] > 2){
 		stop("writePopulation only works for two-parent populations.")

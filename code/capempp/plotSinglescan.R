@@ -8,7 +8,8 @@ plotSinglescan <- function(data.obj, singlescan.obj, chr = NULL, traits = NULL, 
 	geno.names <- data.obj$geno.names
 	
 	if(is.null(chr)){
-		chr <- sort(as.numeric(unique(data.obj$chromosome)))
+		# chr <- sort(as.numeric(unique(data.obj$chromosome)))
+		chr <- unique(data.obj$chromosome)
 		}
 
 

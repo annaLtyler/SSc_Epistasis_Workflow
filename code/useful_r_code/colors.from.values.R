@@ -1,7 +1,11 @@
 #This function is based on imageWithText
 #it gets colors for numeric values
 
-colors.from.values <- function(vals, split.at.vals = FALSE, split.points = 0, col.scale = c("green", "purple", "orange", "blue", "brown", "gray"), light.dark = "f", grad.dir = c("high", "low", "middle", "ends"), color.fun = c("linear", "exponential"), exp.steepness = 1, global.color.scale = FALSE, global.min = NULL, global.max = NULL, use.pheatmap.colors = FALSE, na.col = "lightgray"){
+colors.from.values <- function(vals, split.at.vals = FALSE, split.points = 0, 
+col.scale = c("green", "purple", "orange", "blue", "brown", "gray"), light.dark = "f", 
+grad.dir = c("high", "low", "middle", "ends"), color.fun = c("linear", "exponential"), 
+exp.steepness = 1, global.color.scale = FALSE, global.min = NULL, global.max = NULL, 
+use.pheatmap.colors = FALSE, na.col = "lightgray"){
 
 		require(grid)
 	 	class.mat = NULL

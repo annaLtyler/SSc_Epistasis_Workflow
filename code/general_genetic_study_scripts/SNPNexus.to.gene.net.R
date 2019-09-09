@@ -4,7 +4,8 @@
 # require(RColorBrewer)
 
 
-SNPNexus.to.gene.net <- function(data.obj, snp.gene.table, p.or.q = 0.05, vertex.size = 50, label.x.shift = 0, label.y.shift = 0, cex.label = 1){
+SNPNexus.to.gene.net <- function(data.obj, snp.gene.table, p.or.q = 0.05, vertex.size = 50, 
+label.x.shift = 0, label.y.shift = 0, cex.label = 1){
 	
 	# display.brewer.all()
 	var.inf <- writeVariantInfluences(data.obj, p.or.q, include.main.effects = FALSE, write.file = FALSE)
@@ -94,10 +95,8 @@ SNPNexus.to.gene.net <- function(data.obj, snp.gene.table, p.or.q = 0.05, vertex
 	
 	all.gene.info <- t(sapply(V(snp.net)$name, snp.gene))
 
-
 	overlap.colors <- cbind(c("overlapping", "upstream", "downstream"), brewer.pal(3, "Set2"))
 	cols <- assign.colors(values = all.gene.info[,2], overlap.colors)
-	
 		
 	u_types <- unique(all.gene.info[,"Type"])
 	num.stars <- length(u_types) - 2
@@ -147,7 +146,7 @@ SNPNexus.to.gene.net <- function(data.obj, snp.gene.table, p.or.q = 0.05, vertex
 	#plot the legend for the vertex shapes
 	par(mar = c(0,0,0,0))
 	plot(legend.net, layout = layout.mat, vertex.shape = type.shapes[,2], vertex.color = "white", vertex.norays = as.numeric(type.shapes[,3]), rescale = FALSE, vertex.label = NA, vertex.size = vertex.size/2)
-	text(layout.mat[,1]+label.x.shift/2, layout.mat[,2], V(legend.net)$name, adj = 0, cex = 1.5)
+	text(layout.mat[,1]+mean(label.x.shift)/2, layout.mat[,2], V(legend.net)$name, adj = 0, cex = 1.5)
 	par(xpd = FALSE)
 	
 	#plot the legend for edge colors

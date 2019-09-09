@@ -1,11 +1,9 @@
-plot.grouped.boxes <- function(group.list, group.labels, group.cols = c("#a6cee3", "#b2df8a"), main = "", type = c("list", "matrix"), print.vals = c("mean", "median"), text.cex = 0.7){
+plot.grouped.boxes <- function(group.list, group.labels = names(group.list), 
+group.cols = c("#a6cee3", "#b2df8a"), main = "", type = c("list", "matrix"), 
+print.vals = c("mean", "median"), text.cex = 0.7, label.srt = 0){
 
-	if(length(print.vals) > 1){
-		print.vals <- "mean"
-		}
-	if(length(type) > 1){
-		type <- "list"
-		}
+	print.vals <- print.vals[1]
+	type <- type[1]
 
 	ymin <- min(unlist(group.list), na.rm = TRUE)*0.9
 	ymax <- max(unlist(group.list), na.rm = TRUE)*1.1
@@ -38,6 +36,7 @@ plot.grouped.boxes <- function(group.list, group.labels, group.cols = c("#a6cee3
 						
 			boxplot(data.vals, at = box.pos, add = TRUE, col = group.cols[l], axes = FALSE, main = main)
 			
+			if(!is.na(print.vals)){
 			par(xpd = TRUE)
 			if(length(data.vals) > 0){
 				if(print.vals == "mean"){
@@ -51,6 +50,8 @@ plot.grouped.boxes <- function(group.list, group.labels, group.cols = c("#a6cee3
 				text(x = box.pos, y = (ymin - (plot.height*0.1)), labels = print.val2, cex = text.cex)
 				par(xpd = FALSE)
 				}
+
+			}
 			group.pos[l] <- box.pos
 			if(l < length(group.list)){
 				box.pos = box.pos + 0.7
@@ -60,7 +61,7 @@ plot.grouped.boxes <- function(group.list, group.labels, group.cols = c("#a6cee3
 			} #end looping through groups
 		#write a label for the group
 		par(xpd = TRUE)
-		text(x = mean(group.pos), y = (ymin - (plot.height*0.15)), labels = label)
+		text(x = mean(group.pos), y = (ymin - (plot.height*0.15)), labels = label, srt = label.srt)
 		par(xpd = FALSE)
 		} #end looping through group elements
 	axis(2)
